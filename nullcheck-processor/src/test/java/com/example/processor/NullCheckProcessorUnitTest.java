@@ -2,7 +2,7 @@ package com.example.processor;
 
 import org.junit.jupiter.api.Test;
 
-public class NullCheckProcessorUnitTest {
+class NullCheckProcessorUnitTest {
 
     @Test
     void bananaConstructorHasAllNullChecks() throws Exception {

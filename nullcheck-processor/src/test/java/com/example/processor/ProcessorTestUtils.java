@@ -6,10 +6,11 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TreeScanner;
 import com.sun.source.util.Trees;
-import com.sun.tools.javac.tree.JCTree;
 import lombok.SneakyThrows;
 
 import javax.annotation.processing.Processor;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
@@ -25,6 +26,7 @@ import java.util.*;
 public class ProcessorTestUtils {
 
     public static JavacTask compileSource(String javaSource, Processor processor) throws Exception {
+
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
         JavaFileObject file = new SimpleJavaFileObject(
@@ -53,6 +55,13 @@ public class ProcessorTestUtils {
         task.setProcessors(Collections.singletonList(processor));
         task.parse();
         task.analyze();
+        boolean success = task.call();
+        // Print all diagnostics
+        for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
+            System.out.println(d.getKind() + ": " + d.getMessage(null));
+            System.out.println("Line " + d.getLineNumber() + " col " + d.getColumnNumber());
+            System.out.println("Source: " + d.getSource());
+        }
         return task;
     }
 

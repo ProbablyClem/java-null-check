@@ -6,7 +6,6 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TreeScanner;
 import com.sun.source.util.Trees;
-import lombok.SneakyThrows;
 
 import javax.annotation.processing.Processor;
 import javax.tools.Diagnostic;
@@ -25,7 +24,7 @@ import java.util.*;
  */
 public class ProcessorTestUtils {
 
-    public static JavacTask compileSource(String javaSource, Processor processor) throws Exception {
+    public static CompilationResult compileSource(String javaSource, Processor processor) throws Exception {
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -40,8 +39,12 @@ public class ProcessorTestUtils {
         var diagnostics = new javax.tools.DiagnosticCollector<JavaFileObject>();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
 
+        // Get classpath - needed for annotation and Assert classes
+        String classpath = System.getProperty("java.class.path");
+
         JavacTask task = (JavacTask) compiler.getTask(
                 null, fileManager, diagnostics, List.of(
+                        "-classpath", classpath,
                         "--add-exports", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
                         "--add-exports", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
                         "--add-exports", "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
@@ -53,27 +56,36 @@ public class ProcessorTestUtils {
         );
 
         task.setProcessors(Collections.singletonList(processor));
-        task.parse();
-        task.analyze();
-        boolean success = task.call();
+        // Parse, analyze, and process
+        task.analyze();  // This triggers annotation processing
         // Print all diagnostics
         for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
             System.out.println(d.getKind() + ": " + d.getMessage(null));
             System.out.println("Line " + d.getLineNumber() + " col " + d.getColumnNumber());
             System.out.println("Source: " + d.getSource());
         }
-        return task;
+        // Get compilation units after processing
+        Iterable<? extends CompilationUnitTree> compilationUnits = task.parse();
+        return new CompilationResult(task, compilationUnits);
+    }
+
+    public static class CompilationResult {
+        public final JavacTask task;
+        public final Iterable<? extends CompilationUnitTree> compilationUnits;
+
+        public CompilationResult(JavacTask task, Iterable<? extends CompilationUnitTree> compilationUnits) {
+            this.task = task;
+            this.compilationUnits = compilationUnits;
+        }
     }
 
     /**
      * Returns a map: constructor -> list of Assert.notNull statements
      */
-    @SneakyThrows
-    public static Map<String, List<String>> getConstructorAssertStatements(JavacTask task) {
-        Trees trees = Trees.instance(task);
+    public static Map<String, List<String>> getConstructorAssertStatements(Iterable<? extends CompilationUnitTree> compilationUnits) {
         Map<String, List<String>> constructorMap = new HashMap<>();
 
-        for (CompilationUnitTree cu : task.parse()) {
+        for (CompilationUnitTree cu : compilationUnits) {
             new TreeScanner<Void, Void>() {
                 @Override
                 public Void visitClass(com.sun.source.tree.ClassTree classTree, Void unused) {
@@ -122,8 +134,8 @@ public class ProcessorTestUtils {
     /**
      * Convenience method: automatically detects all fields in the class and checks each constructor.
      */
-    public static void assertAllFieldsCheckedAutomatically(JavacTask task) throws IOException {
-        for (CompilationUnitTree cu : task.parse()) {
+    public static void assertAllFieldsCheckedAutomatically(CompilationResult result) {
+        for (CompilationUnitTree cu : result.compilationUnits) {
             new TreeScanner<Void, Void>() {
                 @Override
                 public Void visitClass(com.sun.source.tree.ClassTree classTree, Void unused) {
@@ -134,7 +146,7 @@ public class ProcessorTestUtils {
                         }
                     }
 
-                    Map<String, List<String>> constructorMap = getConstructorAssertStatements(task);
+                    Map<String, List<String>> constructorMap = getConstructorAssertStatements(result.compilationUnits);
                     assertAllFieldsCheckedInAllConstructors(constructorMap, fieldNames.toArray(new String[0]));
                     return super.visitClass(classTree, unused);
                 }

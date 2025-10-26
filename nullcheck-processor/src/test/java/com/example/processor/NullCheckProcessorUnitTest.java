@@ -14,7 +14,7 @@ class NullCheckProcessorUnitTest {
             public class Banana {
                 private final String color;
                 private final String shape;
-                
+
                 public Banana(String color, String shape) {
                     this.color = color;
                     this.shape = shape;
@@ -22,8 +22,8 @@ class NullCheckProcessorUnitTest {
             }
             """;
 
-        var task = ProcessorTestUtils.compileSource(source, new NullCheckProcessor());
-        ProcessorTestUtils.assertAllFieldsCheckedAutomatically(task);
+        var result = ProcessorTestUtils.compileSource(source, new NullCheckProcessor());
+        ProcessorTestUtils.assertAllFieldsCheckedAutomatically(result);
     }
 
     @Test
@@ -36,7 +36,7 @@ class NullCheckProcessorUnitTest {
             public record Fruit(String name, String type) {}
             """;
 
-        var task = ProcessorTestUtils.compileSource(source, new NullCheckProcessor());
-        ProcessorTestUtils.assertAllFieldsCheckedAutomatically(task);
+        var result = ProcessorTestUtils.compileSource(source, new NullCheckProcessor());
+        ProcessorTestUtils.assertAllFieldsCheckedAutomatically(result);
     }
 }

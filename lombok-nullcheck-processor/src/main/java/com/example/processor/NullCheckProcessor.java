@@ -15,6 +15,7 @@ import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
+import javax.tools.Diagnostic;
 import java.util.Set;
 
 @SupportedAnnotationTypes("com.example.annotations.NullCheck")
@@ -42,17 +43,22 @@ public class NullCheckProcessor extends AbstractProcessor {
             tree.accept(new TreeTranslator() {
                 @Override
                 public void visitClassDef(JCTree.JCClassDecl classDecl) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Processing @NullCheck for: " + classDecl.name);
                     for (JCTree def : classDecl.defs) {
                         if (def instanceof JCTree.JCMethodDecl method && method.name.contentEquals("<init>")) {
+                            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "  Found constructor in: " + classDecl.name);
                             List<JCTree.JCStatement> statements = method.body.stats;
                             for (JCTree.JCVariableDecl param : method.params) {
+                                String t = param.vartype.toString();
+                                if (t.matches("(?i)int|long|double|float|short|byte|char|boolean")) continue;
                                 JCTree.JCExpression assertCall = treeMaker.Apply(
                                         List.nil(),
-                                        treeMaker.Select(treeMaker.Ident(names.fromString("Assert")), names.fromString("notNull")),
+                                        treeMaker.Select(treeMaker.Ident(names.fromString("org.springframework.util.Assert")), names.fromString("notNull")),
                                         List.of(treeMaker.Literal(classDecl.name.toString() + "." + param.name.toString()), treeMaker.Ident(param.name))
                                 );
                                 JCTree.JCStatement stmt = treeMaker.Exec(assertCall);
                                 statements = statements.prepend(stmt);
+                                processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "    Injected null-check for param: " + param.name);
                             }
                             method.body.stats = statements;
                         }
@@ -61,6 +67,6 @@ public class NullCheckProcessor extends AbstractProcessor {
                 }
             });
         }
-        return false;
+        return true;
     }
 }

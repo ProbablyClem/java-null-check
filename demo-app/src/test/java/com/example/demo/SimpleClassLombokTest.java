@@ -4,28 +4,28 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class BananaTest {
+class SimpleClassLombokTest {
 
     @Test
     void constructor_shouldRejectNullColor() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> new Banana(null, "round")
+                () -> new SimpleClassLombok(null, "round")
         );
-        assertTrue(ex.getMessage().contains("Banana.color"));
+        assertTrue(ex.getMessage().contains("SimpleClassLombok.color"));
     }
 
     @Test
     void constructor_shouldRejectNullShape() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> new Banana("yellow", null)
+                () -> new SimpleClassLombok("yellow", null)
         );
-        assertTrue(ex.getMessage().contains("Banana.shape"));
+        assertTrue(ex.getMessage().contains("SimpleClassLombok.shape"));
     }
 
     @Test
     void constructor_shouldAcceptNonNullValues() {
-        assertDoesNotThrow(() -> new Banana("yellow", "round"));
+        assertDoesNotThrow(() -> new SimpleClassLombok("yellow", "round"));
     }
 }

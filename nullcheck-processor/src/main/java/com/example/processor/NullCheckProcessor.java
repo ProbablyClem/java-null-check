@@ -2,6 +2,7 @@ package com.example.processor;
 
 import com.example.annotations.NullCheck;
 import com.sun.source.util.Trees;
+import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.JCTree.*;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.*;
@@ -36,15 +37,38 @@ public class NullCheckProcessor extends AbstractProcessor {
         if (!roundEnv.processingOver()) {
             for (Element annotated : roundEnv.getElementsAnnotatedWith(NullCheck.class)) {
                 JCClassDecl clazz = (JCClassDecl) trees.getTree(annotated);
-                JCCompilationUnit cu = (JCCompilationUnit) clazz.getTree();
+                JCCompilationUnit cu = (JCCompilationUnit) trees.getPath(annotated).getCompilationUnit();
 
-                injectAssertImport(cu);
+                try {
+                    java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter("/tmp/processor-debug.log", true));
+                    pw.println("=== Processing class: " + clazz.name + " ===");
+                    pw.println("Package before: " + cu.getPackage());
+                    pw.println("Package name: " + (cu.getPackage() != null ? cu.getPackage().packge : "null"));
+                    pw.println("CU defs size: " + cu.defs.size());
+                    pw.println("CU defs: " + cu.defs);
+                    pw.flush();
+                    pw.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
 
                 // Process only existing constructors
                 clazz.getMembers().stream()
                      .filter(m -> m instanceof JCMethodDecl md && md.getName().contentEquals("<init>"))
                      .map(m -> (JCMethodDecl) m)
                      .forEach(constructor -> prependNullChecks(clazz, constructor));
+
+                try {
+                    java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter("/tmp/processor-debug.log", true));
+                    pw.println("Package after: " + cu.getPackage());
+                    pw.println("CU defs size after: " + cu.defs.size());
+                    pw.println("CU defs after: " + cu.defs);
+                    pw.println();
+                    pw.flush();
+                    pw.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
         return true;
@@ -62,16 +86,34 @@ public class NullCheckProcessor extends AbstractProcessor {
                     names.fromString("Assert")
             );
             JCImport importTree = maker.Import((JCFieldAccess) importExpr, false);
-            cu.defs = cu.defs.prepend(importTree);
+
+            // Insert import after package declaration (if any) but before other imports/classes
+            // cu.defs is a list: [package decl (optional), imports..., type decls...]
+            // We need to insert after package but before other elements
+            if (cu.defs.nonEmpty() && cu.defs.head instanceof JCPackageDecl) {
+                // There's a package declaration - insert after it
+                cu.defs = cu.defs.tail.prepend(importTree).prepend(cu.defs.head);
+            } else {
+                // No package declaration - just prepend
+                cu.defs = cu.defs.prepend(importTree);
+            }
         }
     }
 
     private void prependNullChecks(JCClassDecl clazz, JCMethodDecl constructor) {
         for (JCVariableDecl param : constructor.params) {
-            JCExpression assertIdent = maker.Ident(names.fromString("Assert"));
+            // Use fully qualified name: com.example.Assert
+            JCExpression assertClass = maker.Select(
+                    maker.Select(
+                            maker.Ident(names.fromString("com")),
+                            names.fromString("example")
+                    ),
+                    names.fromString("Assert")
+            );
+
             JCMethodInvocation call = maker.Apply(
                     List.nil(),
-                    maker.Select(assertIdent, names.fromString("notNull")),
+                    maker.Select(assertClass, names.fromString("notNull")),
                     List.of(
                             maker.Literal(clazz.name.toString() + "." + param.getName()),
                             maker.Ident(param.getName())

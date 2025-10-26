@@ -2,71 +2,75 @@ package com.example.processor;
 
 import com.example.annotations.NullCheck;
 import com.sun.source.util.Trees;
-import com.sun.tools.javac.api.JavacTrees;
-import com.sun.tools.javac.processing.JavacProcessingEnvironment;
-import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.JCTree.*;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.tree.TreeTranslator;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Names;
+import com.sun.tools.javac.util.*;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
-import javax.tools.Diagnostic;
 import java.util.Set;
 
 @SupportedAnnotationTypes("com.example.annotations.NullCheck")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class NullCheckProcessor extends AbstractProcessor {
-    private JavacTrees trees;
-    private TreeMaker treeMaker;
+
+    private Trees trees;
+    private TreeMaker maker;
     private Names names;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
-        this.trees = JavacTrees.instance(processingEnv);
-        Context context = ((JavacProcessingEnvironment) processingEnv).getContext();
-        this.treeMaker = TreeMaker.instance(context);
-        this.names = Names.instance(context);
+        trees = Trees.instance(processingEnv);
+        Context context = ((com.sun.tools.javac.processing.JavacProcessingEnvironment) processingEnv).getContext();
+        maker = TreeMaker.instance(context);
+        names = Names.instance(context);
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        for (Element element : roundEnv.getElementsAnnotatedWith(NullCheck.class)) {
-            JCTree tree = (JCTree) trees.getTree(element);
-            if (tree == null) continue;
+        for (Element annotated : roundEnv.getElementsAnnotatedWith(NullCheck.class)) {
+            JCClassDecl clazz = (JCClassDecl) trees.getTree(annotated);
+            JCCompilationUnit cu = (JCCompilationUnit) clazz.getTree();
 
-            tree.accept(new TreeTranslator() {
-                @Override
-                public void visitClassDef(JCTree.JCClassDecl classDecl) {
-                    processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Processing @NullCheck for: " + classDecl.name);
-                    for (JCTree def : classDecl.defs) {
-                        if (def instanceof JCTree.JCMethodDecl method && method.name.contentEquals("<init>")) {
-                            processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "  Found constructor in: " + classDecl.name);
-                            List<JCTree.JCStatement> statements = method.body.stats;
-                            for (JCTree.JCVariableDecl param : method.params) {
-                                String t = param.vartype.toString();
-                                if (t.matches("(?i)int|long|double|float|short|byte|char|boolean")) continue;
-                                JCTree.JCExpression assertCall = treeMaker.Apply(
-                                        List.nil(),
-                                        treeMaker.Select(treeMaker.Ident(names.fromString("org.springframework.util.Assert")), names.fromString("notNull")),
-                                        List.of(treeMaker.Literal(classDecl.name.toString() + "." + param.name.toString()), treeMaker.Ident(param.name))
-                                );
-                                JCTree.JCStatement stmt = treeMaker.Exec(assertCall);
-                                statements = statements.prepend(stmt);
-                                processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "    Injected null-check for param: " + param.name);
-                            }
-                            method.body.stats = statements;
-                        }
-                    }
-                    super.visitClassDef(classDecl);
-                }
-            });
+            // --- Inject import for com.example.Assert ---
+            boolean hasImport = cu.getImports().stream()
+                                  .anyMatch(i -> i.toString().contains("com.example.Assert"));
+            if (!hasImport) {
+                JCExpression importExpr = maker.Select(
+                        maker.Select(
+                                maker.Ident(names.fromString("com")),
+                                names.fromString("example")
+                        ),
+                        names.fromString("Assert")
+                );
+                JCImport importTree = maker.Import((JCFieldAccess) importExpr, false);
+                cu.defs = cu.defs.prepend(importTree);
+            }
+
+            // --- Process all constructors ---
+            clazz.getMembers().stream()
+                 .filter(m -> m instanceof JCMethodDecl md && md.getName().contentEquals("<init>"))
+                 .map(m -> (JCMethodDecl) m)
+                 .forEach(constructor -> addNullChecksToConstructor(clazz, constructor));
         }
         return true;
+    }
+
+    private void addNullChecksToConstructor(JCClassDecl clazz, JCMethodDecl constructor) {
+        for (JCVariableDecl param : constructor.params) {
+            JCExpression assertIdent = maker.Ident(names.fromString("Assert"));
+            JCMethodInvocation call = maker.Apply(
+                    List.nil(),
+                    maker.Select(assertIdent, names.fromString("notNull")),
+                    List.of(
+                            maker.Literal(clazz.name.toString() + "." + param.getName()),
+                            maker.Ident(param.getName())
+                    )
+            );
+            constructor.body.stats = constructor.body.stats.prepend(maker.Exec(call));
+        }
     }
 }

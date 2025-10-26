@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.example</groupId>
-    <artifactId>lombok-nullcheck-example</artifactId>
+    <artifactId>jassert</artifactId>
     <version>1.0.1-SNAPSHOT</version>
   </parent>
   <artifactId>demo-app</artifactId>
@@ -17,7 +17,7 @@
     </dependency>
     <dependency>
       <groupId>com.example</groupId>
-      <artifactId>lombok-nullcheck-processor</artifactId>
+      <artifactId>nullcheck-processor</artifactId>
       <version>1.0.1-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
@@ -25,6 +25,12 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-core</artifactId>
       <version>6.1.4</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.2</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
   <build>
@@ -44,7 +50,7 @@
             </path>
             <path>
               <groupId>com.example</groupId>
-              <artifactId>lombok-nullcheck-processor</artifactId>
+              <artifactId>nullcheck-processor</artifactId>
               <version>1.0.1-SNAPSHOT</version>
             </path>
           </annotationProcessorPaths>

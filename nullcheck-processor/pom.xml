@@ -4,10 +4,10 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>com.example</groupId>
-    <artifactId>lombok-nullcheck-example</artifactId>
+    <artifactId>jassert</artifactId>
     <version>1.0.1-SNAPSHOT</version>
   </parent>
-  <artifactId>lombok-nullcheck-processor</artifactId>
+  <artifactId>nullcheck-processor</artifactId>
   <dependencies>
     <dependency>
       <groupId>org.projectlombok</groupId>

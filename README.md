@@ -58,14 +58,48 @@ jassert/
 │   ├── @NullCheck          # Annotation to mark classes
 │   ├── NullCheckProcessor  # Bytecode manipulation logic
 │   └── Assert              # Runtime assertion class
+├── nullcheck-parent/       # Parent POM for easy consumer setup
 └── demo-app/               # Example consumer application
 ```
 
 ## Usage
 
-### 1. Add the Dependency
+### Option 1: Use Parent POM (Recommended - Zero Configuration)
 
-Add the annotation processor as a provided dependency:
+The **easiest way** to use `@NullCheck` is to inherit from the provided parent POM:
+
+```xml
+<project>
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>nullcheck-parent</artifactId>
+    <version>1.0.1-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>your-project</artifactId>
+
+  <dependencies>
+    <!-- Add your dependencies here -->
+    <!-- The processor is already configured in parent -->
+  </dependencies>
+</project>
+```
+
+That's it! No build configuration needed. The parent POM includes all necessary setup.
+
+**Install the parent POM first:**
+```bash
+cd nullcheck-parent
+mvn install
+```
+
+---
+
+### Option 2: Manual Configuration (For Existing Projects)
+
+If you can't change your parent POM (e.g., using Spring Boot parent), you need to add the configuration manually.
+
+#### Step 1: Add the Dependency
 
 ```xml
 <dependency>
@@ -76,9 +110,9 @@ Add the annotation processor as a provided dependency:
 </dependency>
 ```
 
-### 2. Configure Maven Compiler Plugin
+#### Step 2: Configure Maven Compiler Plugin
 
-The annotation processor uses javac internals (AST manipulation), which requires special JVM exports. Add this to your `pom.xml`:
+The annotation processor uses javac internals (AST manipulation), which requires special JVM exports:
 
 ```xml
 <build>
@@ -120,9 +154,20 @@ The annotation processor uses javac internals (AST manipulation), which requires
 </build>
 ```
 
-**Note:** If you're using a parent POM, you can define this configuration once in `<pluginManagement>` and all child modules will inherit it automatically (see the `demo-app` module for an example).
+**For Spring Boot Projects:** Use `combine.children="append"` to preserve Spring Boot's compiler configuration:
+```xml
+<configuration combine.children="append">
+  <fork>true</fork>
+  <compilerArgs combine.children="append">
+    <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+    <!-- ... other exports ... -->
+  </compilerArgs>
+</configuration>
+```
 
-### 3. Annotate Your Classes
+---
+
+### Step 3: Annotate Your Classes
 
 Simply add `@NullCheck` to any class:
 
